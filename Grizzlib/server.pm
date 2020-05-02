@@ -18,34 +18,29 @@ my $kilQ = new Thread::Queue;
 my %killist :shared;
 my %users :shared;
 my $rqi :shared = 0;
-my @handles;
 my $socket;
 my $mThread;
-my $period = 2;
-my $port = '9110';
-my $host = '127.0.0.1';
+my $period;
 
-sub new { #Host, Port, Period, Reader thread, Socket thread
+sub new { #Host, Port, Period, Reader thread
 	my $class = shift;
-	$host = shift;
-	$port = shift;
-	$period = shift;
 	my $self = {};
 	bless $self;
 	$socket = IO::Socket::INET->new(
-		LocalHost => $host,
-		LocalPort => $port,
+		LocalHost => shift,
+		LocalPort => shift,
 		Proto => 'tcp',
 		Listen => 5,
 		Reuse => 1
 	) or die "Could not open socket: ".$!."\n";
+	$period = shift;
 	$mThread = threads->create(\&main, $socket);
-	foreach((1..shift)){	
+	my $counter = 0;
+	my $rtc = shift;
+	while($counter++ <= $rtc){	
 		threads->create(\&handleBeaR)->detach();
 	}
-	foreach((1..shift)){
-		threads->create(\&handleSock)->detach();
-	}
+	threads->create(\&handleSock)->detach();
 	#threads->create(\&heartBeat)->detach();
 	#threads->create(\&dumper)->detach();
 	return $self;
@@ -59,7 +54,7 @@ sub handleSock {
 	my @bears;
 	my %dToBear;
 	while(1) {
-		while(defined(my $conn = $sockQ->dequeue_timed(3))){
+		while(defined(my $conn = $sockQ->dequeue_timed($period))){
 			my $sock = new IO::Socket::INET;
 			my $handle = $sock->fdopen($$conn[1], "w+");
 			if(!defined($handle)){
