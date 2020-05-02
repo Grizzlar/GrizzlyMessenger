@@ -1,1 +1,3 @@
-GrizzlyMessenger
+# Grizzly Messenger
+
+> Extremely secure messenger
