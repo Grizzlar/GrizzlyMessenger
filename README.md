@@ -1,3 +1,3 @@
-# Grizzly Messenger
+# Grizzly Messenger 🐻
 
-> Extremely secure messenger
+> Extremely secure messenger 
