@@ -58,25 +58,39 @@ sub mainThread {
 sub handleSock {
 	my @bears;
 	my %dToBear;
-	while(my $conn = $sockQ->dequeue()){
-		my $sock = new IO::Socket::INET;
-		my $handle = $sock->fdopen($$conn[1], "w+");
-		if(!defined($handle)){
-			next;
-		}
-		if(exists($dToBear{$$conn[1]})){
-			splice @bears, $dToBear{$$conn[1]}, 1;
-			delete $dToBear{$$conn[1]};
-		}
-		$dToBear{$$conn[1]} = scalar(@bears);
-		push(@bears, $sock);
-		while(defined(my $target = $kilQ->dequeue_nb())){
-			print "Target: ".$target."\n";
-			if(exists($dToBear{$target})){
-				splice @bears, $dToBear{$target}, 1;
-				delete $dToBear{$target};
+	while(1) {
+		while(defined(my $conn = $sockQ->dequeue_timed(3))){
+			my $sock = new IO::Socket::INET;
+			my $handle = $sock->fdopen($$conn[1], "w+");
+			if(!defined($handle)){
+				next;
 			}
-			delete $killist{$target};
+			if(exists($dToBear{$$conn[1]})){
+				splice @bears, $dToBear{$$conn[1]}, 1;
+				delete $dToBear{$$conn[1]};
+			}
+			$dToBear{$$conn[1]} = scalar(@bears);
+			push(@bears, $sock);
+			while(defined(my @targets = $kilQ->dequeue_nb(6))){
+				foreach my $target(@targets){
+					print "Target: ".$target."\n";
+					if(exists($dToBear{$target})){
+						splice @bears, $dToBear{$target}, 1;
+						delete $dToBear{$target};
+					}
+					delete $killist{$target};
+				}
+			}
+		}
+		while(defined(my @targets = $kilQ->dequeue_nb(6))){
+			foreach my $target(@targets){
+				print "Target: ".$target."\n";
+				if(exists($dToBear{$target})){
+					splice @bears, $dToBear{$target}, 1;
+					delete $dToBear{$target};
+				}
+				delete $killist{$target};
+			}
 		}
 	}
 }
@@ -94,6 +108,10 @@ sub handleBeaR {
 		my $bear = $sock->fdopen($filen, "w+");
 		if(!defined($bear)){
 			print "DISC $filen\n";
+			if(!exists($killist{$filen})){
+				$killist{$filen} = 1;
+				killBear($filen);
+			}
 			if(!$readQ[$rq]->pending()){
 				$rqi = ($rq+1) % 2;
 			}
@@ -108,10 +126,6 @@ sub handleBeaR {
 			if($gp->heartBeat eq $ln){
 				my $now = time();
 				print "HeartBeat from clientID $$conn[0]-".Socket::inet_ntoa($bear->peeraddr)."\n";
-				if($filen == 5 && !exists($killist{$filen})){
-					$killist{$filen} = 1;
-					killBear($filen);
-				}
 				last;
 			}
 			chomp($ln);
